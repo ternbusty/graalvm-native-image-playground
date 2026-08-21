@@ -1,9 +1,6 @@
 package playground.compare;
 
 import playground.jni.JniSyscall;
-import playground.jna.JnaLibC;
-
-import com.sun.jna.Native;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.FunctionDescriptor;
@@ -46,6 +43,39 @@ public final class CompareExample {
 
     private static final long SYS_GETTID = 178; // aarch64
 
+    // ── JNA lazy init (fails at native-image time) ─────────────────────
+    private static playground.jna.JnaLibC jnaInstance;
+    private static boolean jnaFailed;
+    private static String jnaError;
+
+    private static playground.jna.JnaLibC jnaLibC() {
+        if (jnaInstance == null && !jnaFailed) {
+            try {
+                jnaInstance = playground.jna.JnaLibC.INSTANCE;
+            } catch (Throwable t) {
+                jnaFailed = true;
+                jnaError = t.getClass().getSimpleName();
+            }
+        }
+        return jnaInstance;
+    }
+
+    private static void jnaCall(Runnable action) {
+        if (jnaFailed) {
+            System.out.println("  JNA: N/A (" + jnaError
+                    + " -- JNA uses reflection/dynamic proxy, incompatible with native-image)");
+            return;
+        }
+        try {
+            action.run();
+        } catch (Throwable t) {
+            jnaFailed = true;
+            jnaError = t.getClass().getSimpleName();
+            System.out.println("  JNA: N/A (" + jnaError
+                    + " -- JNA uses reflection/dynamic proxy, incompatible with native-image)");
+        }
+    }
+
     public static void run() {
         System.out.println("=== Syscall comparison: JNI vs JNA vs Panama FFM ===");
         System.out.println();
@@ -63,7 +93,7 @@ public final class CompareExample {
         System.out.println("  JNI: " + JniSyscall.getpid());
 
         // JNA: interface declaration only, no C code
-        System.out.println("  JNA: " + JnaLibC.INSTANCE.getpid());
+        jnaCall(() -> System.out.println("  JNA: " + jnaLibC().getpid()));
 
         // FFM: MethodHandle declaration only, no C code
         try {
@@ -85,9 +115,11 @@ public final class CompareExample {
 
         // JNA: byte[] is auto-marshalled as a pointer with copy-back.
         // Caller must allocate the array and convert to String afterward.
-        byte[] jnaBuf = new byte[256];
-        JnaLibC.INSTANCE.gethostname(jnaBuf, 256);
-        System.out.println("  JNA: " + Native.toString(jnaBuf));
+        jnaCall(() -> {
+            byte[] jnaBuf = new byte[256];
+            jnaLibC().gethostname(jnaBuf, 256);
+            System.out.println("  JNA: " + com.sun.jna.Native.toString(jnaBuf));
+        });
 
         // FFM: Arena allocates off-heap memory. MemorySegment.getString()
         // reads a null-terminated C string. Arena.ofConfined() auto-frees.
@@ -114,11 +146,7 @@ public final class CompareExample {
         // JNA: calling variadic syscall() through JNA interface binding.
         // On aarch64, variadic args use a different ABI (stack vs registers),
         // so this may produce wrong results if JNA does not handle it.
-        try {
-            System.out.println("  JNA: " + JnaLibC.INSTANCE.syscall(SYS_GETTID));
-        } catch (Throwable t) {
-            System.out.println("  JNA: FAILED - " + t.getMessage());
-        }
+        jnaCall(() -> System.out.println("  JNA: " + jnaLibC().syscall(SYS_GETTID)));
 
         // FFM: Linker.Option.firstVariadicArg(1) tells the linker that
         // args after index 0 are variadic, so aarch64 ABI is handled
