@@ -4,6 +4,7 @@ import org.graalvm.nativeimage.hosted.Feature;
 import org.graalvm.nativeimage.hosted.RuntimeForeignAccess;
 
 import java.lang.foreign.FunctionDescriptor;
+import java.lang.foreign.Linker;
 import java.lang.foreign.ValueLayout;
 
 /**
@@ -47,6 +48,13 @@ public final class ForeignFeature implements Feature {
         reg(FunctionDescriptor.ofVoid(ValueLayout.JAVA_INT));
         // void()                  say_hello (callc demo)
         reg(FunctionDescriptor.ofVoid());
+        // (ptr,long)->int          gethostname (compare demo)
+        reg(FunctionDescriptor.of(ValueLayout.JAVA_INT,
+                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG));
+        // (long)->long             syscall with 0 variadic args (compare demo)
+        RuntimeForeignAccess.registerForDowncall(
+                FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG),
+                Linker.Option.firstVariadicArg(1));
     }
 
     private static void reg(FunctionDescriptor desc) {
