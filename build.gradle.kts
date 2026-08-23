@@ -69,7 +69,16 @@ graalvmNative {
                 "-H:+ForeignAPISupport",
                 "--enable-native-access=ALL-UNNAMED",
                 "--enable-preview",
-                "--features=playground.nativeimage.ForeignFeature",
+                "--features=" + listOf(
+                    "playground.BasicDemo",
+                    "playground.SyscallDemo",
+                    "playground.FileIoDemo",
+                    "playground.CallCDemo",
+                    "playground.ForkDemo",
+                    "playground.LeakDemo",
+                    "playground.SafepointHangDemo",
+                    "playground.UnshareDemo",
+                ).joinToString(",") { "$it\$Registration" },
             )
         }
     }
