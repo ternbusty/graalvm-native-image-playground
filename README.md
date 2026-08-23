@@ -68,9 +68,11 @@ Calls `say_hello()` defined in `src/main/c/sample/sample.c`. The `buildSample` G
 
 ```
 Calling C function...
-Hello from C!
 Back in Java.
+Hello from C!
 ```
+
+The C `printf` and Java `System.out.println` hit different buffers, so the order of "Hello from C!" and "Back in Java." may vary.
 
 ## Inspect Runtime Threads
 
