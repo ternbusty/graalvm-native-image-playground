@@ -2,7 +2,7 @@ import org.gradle.api.tasks.Exec
 
 plugins {
     application
-    id("org.graalvm.buildtools.native") version "0.11.1"
+    id("org.graalvm.buildtools.native") version "1.1.10"
 }
 
 group = "playground"
@@ -19,9 +19,7 @@ java {
 }
 
 dependencies {
-    // Needed to compile against org.graalvm.nativeimage.hosted.{Feature,RuntimeForeignAccess}.
-    // compileOnly because the GraalVM builder already provides these at native-image time.
-    compileOnly("org.graalvm.sdk:nativeimage:25.0.2")
+    compileOnly("org.graalvm.sdk:nativeimage:25.2.4")
 }
 
 application {
@@ -46,11 +44,6 @@ val buildSample by tasks.registering(Exec::class) {
     workingDir = sampleDir.asFile
     inputs.dir(sampleDir)
     outputs.dir(sampleBuildDir)
-    // Build as a shared library so we can dlopen / Linker.libraryLookup it
-    // at runtime. Statically linking a .a into the native-image binary works
-    // for symbols that something else references, but a symbol only called
-    // through FFM defaultLookup() gets stripped by native-image regardless of
-    // __attribute__((used, visibility("default"))) and -Wl,--whole-archive.
     commandLine(
         "sh", "-c",
         "gcc -shared -fPIC -Wall -Wextra -O2 sample.c -o ${outDir.absolutePath}/libsample.so",
@@ -69,6 +62,10 @@ graalvmNative {
                 "-H:+ForeignAPISupport",
                 "--enable-native-access=ALL-UNNAMED",
                 "--enable-preview",
+                "-H:-DeleteLocalSymbols",
+                "-H:+PreserveFramePointer",
+                "--initialize-at-build-time=playground.BenchDemo,playground.CInteropGetpid,playground.CInteropGetpid\$Directives,playground.VariadicDemo,playground.VariadicDemo\$Directives",
+                "--initialize-at-run-time=playground.FfmGetpid",
                 "--features=" + listOf(
                     "playground.BasicDemo",
                     "playground.SyscallDemo",
@@ -78,6 +75,7 @@ graalvmNative {
                     "playground.LeakDemo",
                     "playground.SafepointHangDemo",
                     "playground.UnshareDemo",
+                    "playground.BenchDemo",
                 ).joinToString(",") { "$it\$Registration" },
             )
         }
